@@ -6,8 +6,8 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 
 public class Series {
-	@JacksonXmlProperty(isAttribute = true)
-    public String UNIT;
+	@JacksonXmlProperty( localName = "UNIT", isAttribute = true)
+    public String currency;
     @JacksonXmlProperty(localName = "bbk:Obs")
     @JacksonXmlElementWrapper(useWrapping = false)
     public List<Obs> Obs;

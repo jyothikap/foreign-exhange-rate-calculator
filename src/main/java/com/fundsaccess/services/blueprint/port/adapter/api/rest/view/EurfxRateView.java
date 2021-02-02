@@ -13,29 +13,19 @@ import com.fundsaccess.services.blueprint.domain.model.Obs;
 public class EurfxRateView {
 	
 	private String currency;
-	private List<Obs> rate;
+	private List<Obs> exchangeDetails;
 	
-	public List<Obs> getRate() {
-		return rate;
+	public List<Obs> getexchangeDetails() {
+		return exchangeDetails;
 	}
-	
-		
+
 	public void setRate(List<Obs> rate) {
-		this.rate = rate;
-	}
-	
-	@JsonSerialize(using=JsonDateSerializer.class)
-	public Date setSomeDate(String value) throws ParseException
-	{
-		String pattern = "yyyy-MM-dd";
-		SimpleDateFormat simpleDateFormat = new SimpleDateFormat(pattern);
-		return simpleDateFormat.parse(value);
+		this.exchangeDetails = rate;
 	}
 	
 	public EurfxRateView(CompactData blueprint)  {
-		
-        this.currency = blueprint.dataSet.series.UNIT;
-        this.rate = blueprint.dataSet.series.Obs;
+        this.currency = blueprint.dataSet.series.currency;
+        this.exchangeDetails = blueprint.dataSet.series.Obs;
     }
 
 	public String getCurrency() {

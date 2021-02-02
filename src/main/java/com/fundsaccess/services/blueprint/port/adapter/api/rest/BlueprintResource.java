@@ -1,10 +1,14 @@
 package com.fundsaccess.services.blueprint.port.adapter.api.rest;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fundsaccess.services.blueprint.application.BlueprintApplicationService;
+import com.fundsaccess.services.blueprint.application.EuroFxRateApplicationService;
 import com.fundsaccess.services.blueprint.domain.model.CompactData;
-import com.fundsaccess.services.blueprint.domain.model.JsonDateSerializer;
-import com.fundsaccess.services.blueprint.port.adapter.api.rest.view.BlueprintView;
+import com.fundsaccess.services.blueprint.domain.model.CurrencyDetails;
+import com.fundsaccess.services.blueprint.domain.model.Obs;
+import com.fundsaccess.services.blueprint.exception.DataNotFoundException;
+import com.fundsaccess.services.blueprint.exception.DataNotProvidedException;
+import com.fundsaccess.services.blueprint.exception.ExceptionBuilder;
+import com.fundsaccess.services.blueprint.exception.InvalidDataException;
+import com.fundsaccess.services.blueprint.port.adapter.api.rest.view.AllCurrenciesView;
 import com.fundsaccess.services.blueprint.port.adapter.api.rest.view.ConvertedRateView;
 import com.fundsaccess.services.blueprint.port.adapter.api.rest.view.EurfxRateView;
 import com.fundsaccess.services.blueprint.port.adapter.api.rest.view.EurfxRateViewForDate;
@@ -17,10 +21,16 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+
+import org.apache.commons.lang3.StringUtils;
+
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Date;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 /**
  * A sample REST resource.
@@ -30,7 +40,7 @@ import java.util.stream.Collectors;
 public class BlueprintResource {
 
     @Inject
-    BlueprintApplicationService blueprintApplicationService;
+    EuroFxRateApplicationService euroFxRateApplicationService;
 
     /**
      * A sample rest endpoint. Returns an empty array.
@@ -42,14 +52,9 @@ public class BlueprintResource {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public Response getAvailableCurrencies() throws IOException {
-    	
-    	System.out.println("This method returns the list of all Currencies");
-
-        Collection<CompactData> availableCurrencies = blueprintApplicationService.getAvailableCurrencies();
-        
-                                
-        Collection<BlueprintView> views = availableCurrencies.stream()
-                .map(b -> new BlueprintView(b))
+       Set<String> availableCurrencies = euroFxRateApplicationService.getAllCurrencies(); 
+        Collection<AllCurrenciesView> views = availableCurrencies.stream()
+                .map(b -> new AllCurrenciesView(b))
                 .collect(Collectors.toList());
 
         return Response.ok()
@@ -60,39 +65,26 @@ public class BlueprintResource {
     @Path("/eurfxrate")
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    @JsonSerialize(using=JsonDateSerializer.class)
     public Response getEurfxRateOfCurrencies(@QueryParam("currency") String currency) throws IOException {
-    	
-    	System.out.println("This method returns the list of EURFX Rates for a particular currency....." +currency);
-    	
-    	 Collection<CompactData> availableCurrencies = blueprintApplicationService.getAvailableCurrencies();
-      
-//    	Collection<EurfxRateView> views = availableCurrencies.stream()
-//                .map(b -> new EurfxRateView(b))
-//                .collect(Collectors.toList());
-    	 System.out.println("This method returns the list of EURFX Rates for a particular currency" +currency );
-    	 Collection<EurfxRateView> views = availableCurrencies.stream().
-    	 filter(c->c.dataSet.series.UNIT.equalsIgnoreCase(currency)).
-    	 map(b -> new EurfxRateView(b)).
-    	 collect(Collectors.toList());
-     
+    	ExceptionBuilder.throwExceptionIfDataNullOrEmpty("currency", currency);
+    	 CompactData currencyData = euroFxRateApplicationService.getACurrencyData(currency);
+    	 EurfxRateView views = new EurfxRateView(currencyData);
         return Response.ok()
                 .entity(views)
-                .build();
-    	
+                .build();    	
     }
     	
     @Path("/eurfxratedate")
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public Response getEurfxRateOfCurrenciesOnDate(@QueryParam("date") String dateFromClient) throws IOException {
-    	
-    	System.out.println("This method returns the list of EURFX Rates for a particular date" + dateFromClient );
-    	 Collection<CompactData> availableCurrencies = blueprintApplicationService.getAvailableCurrencies();
+    	ExceptionBuilder.throwExceptionIfDataNullOrEmpty("date", dateFromClient);
+    	ExceptionBuilder.throwExceptionIfInvalidDate(dateFromClient);
+	
+    	 Set<CurrencyDetails> availableCurrencies = euroFxRateApplicationService.getAllDataForAGivenDate(dateFromClient);
     	 Collection<EurfxRateViewForDate> views = availableCurrencies.stream().    			 
     	    	 map(b -> new EurfxRateViewForDate(b, dateFromClient)).
-    	    	 collect(Collectors.toList());
-    	 
+    	    	 collect(Collectors.toList());    	 
     	         return Response.ok()
     	                .entity(views)
     	                .build();
@@ -103,18 +95,24 @@ public class BlueprintResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getCovertedAmountInEuro(@QueryParam("date") String dateFromClient, @QueryParam("currencyType") String currencyType, @QueryParam("amount") String amount) throws IOException {
     	
-    	System.out.println("date: "+dateFromClient);
-    	System.out.println("currency type: 	"+ currencyType);
-    	System.out.println("amount: 	"+ amount);
-    	 Collection<CompactData> availableCurrencies = blueprintApplicationService.getAvailableCurrencies();
-    	 availableCurrencies.removeIf((CompactData data)->!data.dataSet.series.UNIT.equalsIgnoreCase(currencyType));
-    	 Collection<ConvertedRateView> views = availableCurrencies.stream().    			 
-    	    	 map(b -> new ConvertedRateView(b, dateFromClient, amount, currencyType)).
-    	    	 collect(Collectors.toList());
-    	 
-    	         return Response.ok()
-    	                .entity(views)
-    	                .build();
-    }  
+    	ExceptionBuilder.throwExceptionIfDataNullOrEmpty("date", dateFromClient);
+    	ExceptionBuilder.throwExceptionIfInvalidDate(dateFromClient);
+    	ExceptionBuilder.throwExceptionIfDataNullOrEmpty("currencyType", currencyType);
+    	ExceptionBuilder.throwExceptionIfDataNullOrEmpty("amount", amount);
+    	Double amountInNumbers = 0.0;
+    	try {
+    		 amountInNumbers = Double.parseDouble(amount); 
+    	}
+    	catch(NumberFormatException ex)
+    	{
+    		throw new InvalidDataException("Found non numeric value for parameter \"amount\"."+ex.getMessage());
+    	}
+    	Double covertedAmount = euroFxRateApplicationService.getConvertedExchangeRate(currencyType, dateFromClient, amountInNumbers);
+    	ConvertedRateView views = new ConvertedRateView(covertedAmount, currencyType, dateFromClient);
+       	 
+       	         return Response.ok()
+       	                .entity(views)
+       	                .build();
+    }   
 
 }
